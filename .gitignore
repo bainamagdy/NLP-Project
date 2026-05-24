@@ -1,1 +1,6 @@
 spam_email_dataset.csv
+numeric_scaler.pkl
+tfidf_vectorizer.pkl
+xgb_model.pkl
+svm_model.pkl
+domain_Label_encoder.pkl
