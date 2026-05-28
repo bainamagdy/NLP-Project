@@ -2,8 +2,8 @@ streamlit
 pandas
 numpy
 joblib
+tensorflow-cpu
 scikit-learn
 xgboost
-tensorflow
 nltk
 scipy
