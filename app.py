@@ -13,16 +13,26 @@ from tensorflow.keras.layers import Layer
 import tensorflow.keras.backend as K
 
 # ---------------------------------------------------------
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة و NLTK
 # ---------------------------------------------------------
 st.set_page_config(page_title="Spam Email Classifier", page_icon="📧", layout="wide")
 
 @st.cache_resource
 def download_nltk_data():
-    for pkg in ['punkt', 'stopwords', 'wordnet', 'averaged_perceptron_tagger', 'omw-1.4']:
+    # إضافة الأسماء الجديدة لحل مشكلة السيرفر (LookupError)
+    packages = [
+        'punkt',
+        'punkt_tab',
+        'stopwords', 
+        'wordnet', 
+        'averaged_perceptron_tagger',
+        'averaged_perceptron_tagger_eng', 
+        'omw-1.4'
+    ]
+    for pkg in packages:
         try:
             nltk.download(pkg, quiet=True)
-        except:
+        except Exception as e:
             pass
 download_nltk_data()
 
@@ -93,14 +103,12 @@ st.write("تطبيق بسيط لتصنيف الإيميلات (سبام أو س�
 
 st.markdown("---")
 
-# ================= الجزء الجديد =================
 col_perf, col_features = st.columns([1, 1])
 
 with col_perf:
     st.subheader("📊 أداء الموديلات (Evaluation Metrics)")
     st.write("نتائج الاختبار على الـ Test Data:")
     
-    # عرض الـ 4 مقاييس في جدول شيك
     metrics_data = {
         "الموديل (Model)": ["Linear SVM", "XGBoost", "BiLSTM + Attention"],
         "Accuracy": ["100%", "99.95%", "100%"],
@@ -135,7 +143,6 @@ with col_features:
         * **XGBoost**: بيعمل شجرة قرارات (لو اللينكات كتير ومفيش سمعة كويسة = سبام).
         * **BiLSTM + Attention**: بيفهم "سياق وترتيب الكلام" ويركز على أهم كلمات (Attention) وبعدين يدمجها مع الأرقام.
         """)
-# =================================================
 
 st.markdown("---")
 
@@ -143,19 +150,23 @@ st.subheader("🧪 اختبر الموديل بنفسك")
 model_choice = st.selectbox("اختار الموديل اللي عايز تجربه:", 
                             ["Linear SVM", "XGBoost", "BiLSTM + Attention"])
 
-email_input = st.text_area("اكتب الإيميل هنا (الموضوع والرسالة):", height=150, 
-                           placeholder="Congratulations! You won a free iPhone. Click here to claim your cash now...")
+# فصل الموضوع عن النص
+email_subject = st.text_input("موضوع الإيميل (Subject):", placeholder="Congratulations! You won...")
+email_body = st.text_area("نص الإيميل (Body):", height=150, placeholder="Click here to claim your cash now...")
 
 if st.button("🚀 افحص الإيميل", type="primary"):
+    # دمج الموضوع والنص للنموذج
+    email_input = email_subject + " " + email_body
+    
     if not email_input.strip():
-        st.warning("أرجوك اكتب الإيميل الأول عشان نقدر نفحصه.")
+        st.warning("أرجوك اكتب موضوع أو نص الإيميل الأول عشان نقدر نفحصه.")
     elif svm_model is None:
         st.error("مش قادر ألاقي ملفات الموديل! اتأكدي إن ملفات الـ joblib والـ keras في نفس الفولدر.")
     else:
         with st.spinner('جاري الفحص...'):
             clean_email = preprocess_text(email_input)
             
-            # تجهيز الميزات الرقمية الوهمية عشان الموديل يشتغل (بنستخرج شوية منها من النص بتاعك)
+            # تجهيز الميزات الرقمية الوهمية عشان الموديل يشتغل
             num_words = len(clean_email.split())
             contains_money = 1 if any(word in clean_email for word in ['money', 'cash', 'dollar', 'free', 'win']) else 0
             contains_urgency = 1 if any(word in clean_email for word in ['urgent', 'now', 'immediate', 'offer', 'claim']) else 0
