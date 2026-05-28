@@ -19,7 +19,6 @@ st.set_page_config(page_title="Spam Email Classifier", page_icon="📧", layout=
 
 @st.cache_resource
 def download_nltk_data():
-    # إضافة الأسماء الجديدة لحل مشكلة السيرفر (LookupError)
     packages = [
         'punkt',
         'punkt_tab',
@@ -78,7 +77,7 @@ def preprocess_text(text: str) -> str:
     )
 
 # ---------------------------------------------------------
-# 4. تحميل الموديلات
+# 4. تحميل الموديلات (بما فيها الـ Label Encoder للدومين)
 # ---------------------------------------------------------
 @st.cache_resource
 def load_assets():
@@ -88,12 +87,13 @@ def load_assets():
         tfidf = joblib.load('tfidf_vectorizer.joblib')
         scaler = joblib.load('scaler.joblib')
         dl_tokenizer = joblib.load('keras_tokenizer.joblib')
+        label_encoder = joblib.load('label_encoder.joblib')  # تحميل ملف تشفير الدومين
         dl_model = load_model('spam_hybrid_attention_model.keras', custom_objects={'AttentionLayer': AttentionLayer})
-        return svm_model, xgb_model, dl_model, tfidf, scaler, dl_tokenizer
+        return svm_model, xgb_model, dl_model, tfidf, scaler, dl_tokenizer, label_encoder
     except Exception as e:
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
 
-svm_model, xgb_model, dl_model, tfidf, scaler, dl_tokenizer = load_assets()
+svm_model, xgb_model, dl_model, tfidf, scaler, dl_tokenizer, label_encoder = load_assets()
 
 # ---------------------------------------------------------
 # 5. واجهة المستخدم (UI)
@@ -137,11 +137,6 @@ with col_features:
         * **email_hour / is_weekend**: وقت الإرسال وهل هو في إجازة الأسبوع ولا لأ.
         * **num_recipients**: عدد الأشخاص اللي مبعوتلهم الإيميل.
         * **sender_domain**: دومين المرسل (زي gmail, yahoo أو دومين مشبوه).
-        
-        **إزاي كل موديل بيستخدمهم؟**
-        * **SVM**: بيدي وزن (Weight) لكل كلمة ورقم ويجمعهم عشان ياخد قرار.
-        * **XGBoost**: بيعمل شجرة قرارات (لو اللينكات كتير ومفيش سمعة كويسة = سبام).
-        * **BiLSTM + Attention**: بيفهم "سياق وترتيب الكلام" ويركز على أهم كلمات (Attention) وبعدين يدمجها مع الأرقام.
         """)
 
 st.markdown("---")
@@ -150,12 +145,12 @@ st.subheader("🧪 اختبر الموديل بنفسك")
 model_choice = st.selectbox("اختار الموديل اللي عايز تجربه:", 
                             ["Linear SVM", "XGBoost", "BiLSTM + Attention"])
 
-# فصل الموضوع عن النص
+# إضافة حقل إيميل المرسل
+sender_email = st.text_input("إيميل المرسل (Sender Email):", placeholder="example@gmail.com")
 email_subject = st.text_input("موضوع الإيميل (Subject):", placeholder="Congratulations! You won...")
 email_body = st.text_area("نص الإيميل (Body):", height=150, placeholder="Click here to claim your cash now...")
 
 if st.button("🚀 افحص الإيميل", type="primary"):
-    # دمج الموضوع والنص للنموذج
     email_input = email_subject + " " + email_body
     
     if not email_input.strip():
@@ -166,13 +161,22 @@ if st.button("🚀 افحص الإيميل", type="primary"):
         with st.spinner('جاري الفحص...'):
             clean_email = preprocess_text(email_input)
             
+            # --- معالجة دومين المرسل (Domain Processing) ---
+            domain_encoded = 0
+            if label_encoder is not None and sender_email.strip():
+                # استخراج الدومين (اللي بعد علامة @)
+                domain = sender_email.split('@')[-1].lower().strip()
+                # التأكد إن الدومين موجود في بيانات التدريب
+                if domain in label_encoder.classes_:
+                    domain_encoded = label_encoder.transform([domain])[0]
+            
             # تجهيز الميزات الرقمية الوهمية عشان الموديل يشتغل
             num_words = len(clean_email.split())
             contains_money = 1 if any(word in clean_email for word in ['money', 'cash', 'dollar', 'free', 'win']) else 0
             contains_urgency = 1 if any(word in clean_email for word in ['urgent', 'now', 'immediate', 'offer', 'claim']) else 0
             
-            # ترتيب الأعمدة اللي الموديل اتدرب عليها:
-            numeric_features = np.array([[num_words, 0, 0, 0, 0.5, 12, 3, 0, 1, contains_money, contains_urgency, 0]])
+            # إضافة الـ domain_encoded في آخر المصفوفة بدال الصفر الثابت
+            numeric_features = np.array([[num_words, 0, 0, 0, 0.5, 12, 3, 0, 1, contains_money, contains_urgency, domain_encoded]])
             numeric_scaled = scaler.transform(numeric_features)
             
             prediction = 0
