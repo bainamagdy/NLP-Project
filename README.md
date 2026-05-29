@@ -102,8 +102,8 @@ storage    = ["joblib"]
 
 **Step 1 — Clone the repo**
 ```bash
-git clone https://github.com/your-username/spam-email-classifier.git
-cd spam-email-classifier
+git clone https://github.com/bainamagdy/NLP-Project.git
+cd NLP-Project
 ```
 
 **Step 2 — Install dependencies**
@@ -198,4 +198,4 @@ Built with ☕, frustration, and an unreasonable hatred of spam emails by four p
 
 ---
 
-⭐ **Star this repo if it helped you!** Your star means we didn't do this for nothing. 😄
+⭐ **[Star this repo](https://github.com/bainamagdy/NLP-Project)** if it helped you! Your star means we didn't do this for nothing. 😄
